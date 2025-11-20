@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foro Comunidad | neuroLux</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        neuro: {
+                            blue: '#2563EB', red: '#DC2626', green: '#16A34A',
+                            purple: '#9333EA', yellow: '#FACC15', dark: '#1F2937', light: '#F3F4F6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Estilo para cuando hay MÚLTIPLES imágenes (Grid) */
+        .post-image-grid {
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Columnas más anchas */
+            gap: 0.5rem; 
+            margin-top: 1rem;
+        }
+        .post-image-grid img { 
+            width: 100%; 
+            height: 450px; /* AUMENTADO: De 300px a 450px para proporción más vertical */
+            object-fit: cover; 
+            border-radius: 0.5rem; 
+            cursor: pointer; 
+            transition: opacity 0.2s;
+        }
+        .post-image-grid img:hover { opacity: 0.9; }
+
+        /* Estilo para cuando hay UNA SOLA imagen (Full) */
+        .post-single-image {
+            margin-top: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+        .post-single-image img {
+            width: 100%;
+            max-height: 650px; /* Altura máxima generosa */
+            object-fit: contain; /* Muestra la imagen completa sin recortar */
+            cursor: pointer;
+        }
+        
+        /* Estilo para el botón de eliminar en preview */
+        .preview-item { position: relative; display: inline-block; }
+        .btn-remove-img {
+            position: absolute; top: 5px; right: 5px;
+            background: rgba(220, 38, 38, 0.9); color: white;
+            width: 24px; height: 24px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: transform 0.2s; z-index: 10;
+        }
+        .btn-remove-img:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-700 antialiased">
+
+    <!-- CONTENEDOR NAVBAR (Se llena con navbar.js) -->
+    <div id="navbar-container"></div>
+
+    <main class="pt-24 pb-20 min-h-screen">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <!-- Cabecera -->
+            <div class="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Comunidad neuroLux</h1>
+                    <p class="text-gray-600 mt-2">Comparte experiencias, consejos y avances.</p>
+                </div>
+                <div id="user-panel" class="flex gap-3"></div>
+            </div>
+
+            <!-- Crear Post -->
+            <div id="create-post-area" class="bg-white rounded-xl shadow-sm p-4 mb-8 hidden border border-gray-200">
+                <div class="flex gap-4">
+                    <img id="current-user-img" src="" alt="User" class="w-10 h-10 rounded-full object-cover border border-gray-200">
+                    <div class="flex-1">
+                        <input type="text" id="new-post-title" placeholder="Título de tu publicación..." class="w-full font-bold text-gray-900 placeholder-gray-400 border-none focus:ring-0 mb-2 text-lg bg-transparent focus:outline-none">
+                        <textarea id="new-post-text" rows="2" placeholder="¿Qué quieres compartir hoy?" class="w-full text-gray-600 placeholder-gray-400 border-none focus:ring-0 resize-none bg-transparent focus:outline-none"></textarea>
+                        
+                        <!-- Contenedor de previsualización dinámica -->
+                        <div id="image-preview-wrapper" class="hidden mt-2">
+                            <!-- Se llenará con JS dependiendo de la cantidad de fotos -->
+                        </div>
+
+                        <div class="flex justify-between items-center mt-4 pt-3 border-t border-gray-100">
+                            <label class="cursor-pointer flex items-center gap-2 text-neuro-blue hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors">
+                                <i class="fa-regular fa-image text-lg"></i>
+                                <span class="text-sm font-medium">Agregar Imágenes</span>
+                                <!-- multiple permite seleccionar varias -->
+                                <input type="file" id="post-images" multiple accept="image/*" class="hidden">
+                            </label>
+                            <button onclick="publishPost()" id="btn-publish" class="bg-neuro-blue text-white px-6 py-2 rounded-full font-medium hover:bg-blue-700 transition-all shadow-md">Publicar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feed -->
+            <div id="feed-container" class="space-y-6"></div>
+
+            <!-- Cargar Más -->
+            <div class="mt-10 text-center">
+                <button id="load-more-btn" onclick="loadMorePosts()" class="hidden px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-all shadow-sm">Cargar más</button>
+                <p id="no-more-posts" class="hidden text-gray-500 italic">No hay más publicaciones.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-gray-900 py-8 border-t border-gray-800 text-center">
+        <p class="text-gray-400 text-sm">&copy; 2025 neuroLux. Todos los derechos reservados.</p>
+    </footer>
+
+    <!-- MODALES -->
+    
+    <!-- Login -->
+    <div id="modal-login" class="fixed inset-0 z-[60] hidden">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 z-10 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative">
+                <div class="text-center mb-6">
+                        <h3 class="text-2xl font-bold text-gray-900">Iniciar Sesión</h3>
+                </div>
+                <form class="space-y-4" onsubmit="event.preventDefault(); handleLogin();">
+                    <input type="email" id="login-email" required placeholder="Correo electrónico" class="block w-full rounded-md border border-gray-300 py-2.5 px-4 focus:ring-2 focus:ring-neuro-blue outline-none">
+                    <input type="password" id="login-pass" required placeholder="Contraseña" class="block w-full rounded-md border border-gray-300 py-2.5 px-4 focus:ring-2 focus:ring-neuro-blue outline-none">
+                    <button type="submit" class="w-full rounded-md bg-neuro-blue px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-600">Entrar</button>
+                </form>
+                <div class="mt-4 text-center text-sm">
+                    <button onclick="switchModal('modal-login', 'modal-register')" class="font-semibold text-neuro-purple hover:text-purple-500">Crear cuenta</button>
+                </div>
+                <button onclick="toggleModal('modal-login')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registro -->
+    <div id="modal-register" class="fixed inset-0 z-[60] hidden">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 z-10 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative">
+                <div class="text-center mb-6">
+                        <h3 class="text-2xl font-bold text-gray-900">Crear Cuenta</h3>
+                </div>
+                <form class="space-y-3" onsubmit="event.preventDefault(); handleRegister();">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="reg-realname" required placeholder="Nombre Real" class="block w-full rounded-md border border-gray-300 py-2 px-3 focus:ring-2 focus:ring-neuro-blue outline-none">
+                        <input type="text" id="reg-username" required placeholder="Nombre de Perfil" class="block w-full rounded-md border border-gray-300 py-2 px-3 focus:ring-2 focus:ring-neuro-blue outline-none">
+                    </div>
+                    <input type="email" id="reg-email" required placeholder="Correo electrónico" class="block w-full rounded-md border border-gray-300 py-2 px-3 focus:ring-2 focus:ring-neuro-blue outline-none">
+                    <input type="password" id="reg-pass" required placeholder="Contraseña" class="block w-full rounded-md border border-gray-300 py-2 px-3 focus:ring-2 focus:ring-neuro-blue outline-none">
+                    
+                    <label class="block text-sm font-medium text-gray-700">Foto de Perfil (Opcional)</label>
+                    <input type="file" id="reg-photo" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-neuro-blue">
+
+                    <button type="submit" class="w-full rounded-md bg-neuro-green px-3 py-2.5 text-sm font-semibold text-white hover:bg-green-600 mt-4">Registrarse</button>
+                </form>
+                <div class="mt-4 text-center text-sm">
+                    <button onclick="switchModal('modal-register', 'modal-login')" class="font-semibold text-neuro-blue hover:text-blue-500">Ya tengo cuenta</button>
+                </div>
+                <button onclick="toggleModal('modal-register')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="navbar.js"></script>
+
+    <script>
+        let currentUser = null;
+        let currentPage = 1;
+        const API_URL = 'api.php';
+        
+        // NUEVO: Array para acumular las imágenes seleccionadas
+        let currentFiles = []; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkSession();
+            renderPosts();
+        });
+
+        // --- AUTENTICACIÓN ---
+        function checkSession() {
+            const storedUser = localStorage.getItem('neurolux_user');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                updateUserPanel();
+            } else {
+                updateUserPanel();
+            }
+        }
+
+        function updateUserPanel() {
+            const panel = document.getElementById('user-panel');
+            const createArea = document.getElementById('create-post-area');
+            
+            if (currentUser) {
+                panel.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium text-gray-700 hidden sm:block">${currentUser.nombre_perfil}</span>
+                        <img src="${currentUser.foto_perfil}" class="w-10 h-10 rounded-full border border-gray-200 object-cover">
+                        <button onclick="logout()" class="text-sm text-red-500 hover:text-red-700 font-medium">Salir</button>
+                    </div>
+                `;
+                createArea.classList.remove('hidden');
+                document.getElementById('current-user-img').src = currentUser.foto_perfil;
+            } else {
+                panel.innerHTML = `
+                    <button onclick="toggleModal('modal-login')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-full hover:bg-gray-50">Entrar</button>
+                    <button onclick="toggleModal('modal-register')" class="px-4 py-2 text-sm font-medium text-white bg-neuro-blue rounded-full hover:bg-blue-600">Registro</button>
+                `;
+                createArea.classList.add('hidden');
+            }
+        }
+
+        async function handleRegister() {
+            const form = new FormData();
+            form.append('nombre_real', document.getElementById('reg-realname').value);
+            form.append('nombre_perfil', document.getElementById('reg-username').value);
+            form.append('email', document.getElementById('reg-email').value);
+            form.append('password', document.getElementById('reg-pass').value);
+            
+            const photoInput = document.getElementById('reg-photo');
+            if(photoInput.files[0]) {
+                form.append('foto_perfil', photoInput.files[0]);
+            }
+
+            try {
+                const res = await fetch(API_URL + '?action=register', { method: 'POST', body: form });
+                const data = await res.json();
+                
+                if(data.success) {
+                    currentUser = data.user;
+                    localStorage.setItem('neurolux_user', JSON.stringify(currentUser));
+                    toggleModal('modal-register');
+                    updateUserPanel();
+                    alert('¡Bienvenido!');
+                } else {
+                    alert(data.error || 'Error al registrarse');
+                }
+            } catch (e) { console.error(e); alert('Error de conexión'); }
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-pass').value;
+
+            try {
+                const res = await fetch(API_URL + '?action=login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                if(data.success) {
+                    currentUser = data.user;
+                    localStorage.setItem('neurolux_user', JSON.stringify(currentUser));
+                    toggleModal('modal-login');
+                    updateUserPanel();
+                } else {
+                    alert(data.error || 'Error de login');
+                }
+            } catch (e) { console.error(e); alert('Error de conexión'); }
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('neurolux_user');
+            location.reload();
+        }
+
+        // --- POSTS Y COMENTARIOS ---
+        async function renderPosts() {
+            const container = document.getElementById('feed-container');
+            const loadBtn = document.getElementById('load-more-btn');
+            
+            try {
+                const res = await fetch(`${API_URL}?action=get_posts&page=${currentPage}`);
+                const data = await res.json();
+                
+                if(data.posts && data.posts.length > 0) {
+                    if(currentPage === 1) container.innerHTML = '';
+                    
+                    data.posts.forEach(post => {
+                        container.innerHTML += createPostHTML(post);
+                    });
+
+                    if(data.posts.length < 20) {
+                        loadBtn.classList.add('hidden');
+                        document.getElementById('no-more-posts').classList.remove('hidden');
+                    } else {
+                        loadBtn.classList.remove('hidden');
+                    }
+                } else {
+                    if(currentPage === 1) container.innerHTML = '<p class="text-center text-gray-500">Aún no hay publicaciones. ¡Sé el primero!</p>';
+                    loadBtn.classList.add('hidden');
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function createPostHTML(post) {
+            let imagesHtml = '';
+            
+            if(post.images && post.images.length > 0) {
+                // LÓGICA DE VISUALIZACIÓN DE IMÁGENES
+                if(post.images.length === 1) {
+                    // Una sola imagen: Grande y completa
+                    imagesHtml = `
+                    <div class="post-single-image">
+                        <img src="${post.images[0]}" onclick="window.open('${post.images[0]}', '_blank')">
+                    </div>`;
+                } else {
+                    // Múltiples imágenes: Grid
+                    imagesHtml = `
+                    <div class="post-image-grid">
+                        ${post.images.map(img => `<img src="${img}" onclick="window.open('${img}', '_blank')">`).join('')}
+                    </div>`;
+                }
+            }
+
+            const date = new Date(post.fecha_creacion).toLocaleDateString();
+
+            return `
+            <article class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow mb-4">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex gap-3">
+                        <img src="${post.foto_perfil || 'https://ui-avatars.com/api/?name=User'}" class="w-10 h-10 rounded-full object-cover">
+                        <div>
+                            <h4 class="font-bold text-gray-900 text-sm">${post.nombre_perfil}</h4>
+                            <span class="text-gray-500 text-xs">${date}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="text-lg font-bold text-gray-800 mb-2">${post.titulo}</h3>
+                    <p class="text-gray-600 whitespace-pre-line">${post.texto}</p>
+                    ${imagesHtml}
+                </div>
+
+                <div class="flex items-center gap-6 pt-4 border-t border-gray-50">
+                    <button class="flex items-center gap-2 text-gray-500 hover:text-neuro-red transition-colors">
+                        <i class="fa-regular fa-heart"></i> <span class="text-sm">${post.likes}</span>
+                    </button>
+                    <button onclick="toggleComments(${post.id})" class="flex items-center gap-2 text-gray-500 hover:text-neuro-blue transition-colors">
+                        <i class="fa-regular fa-comment"></i> <span class="text-sm">${post.num_comments} Comentarios</span>
+                    </button>
+                </div>
+
+                <div id="comments-section-${post.id}" class="hidden mt-4 pt-4 border-t border-gray-100 bg-gray-50 p-4 rounded-lg">
+                    <div id="comments-list-${post.id}" class="space-y-3 mb-4">
+                        <p class="text-xs text-gray-400">Cargando comentarios...</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="comment-input-${post.id}" placeholder="Escribe un comentario..." class="flex-1 rounded-full border-gray-300 text-sm px-4 py-2 focus:ring-neuro-blue outline-none border">
+                        <button onclick="postComment(${post.id})" class="bg-neuro-blue text-white rounded-full px-4 py-1 text-sm hover:bg-blue-600">Enviar</button>
+                    </div>
+                </div>
+            </article>`;
+        }
+
+        async function publishPost() {
+            if(!currentUser) return alert("Debes iniciar sesión.");
+            
+            const btn = document.getElementById('btn-publish');
+            const title = document.getElementById('new-post-title').value;
+            const text = document.getElementById('new-post-text').value;
+            
+            // VALIDACIÓN: Usamos currentFiles en lugar del input directo
+            if((!title && !text) && currentFiles.length === 0) return alert("Escribe algo o sube una imagen...");
+
+            btn.disabled = true;
+            btn.textContent = "Publicando...";
+
+            const form = new FormData();
+            form.append('usuario_id', currentUser.id);
+            form.append('titulo', title);
+            form.append('texto', text);
+            
+            // AGREGAR IMÁGENES ACUMULADAS
+            currentFiles.forEach(file => {
+                form.append('imagenes[]', file);
+            });
+
+            try {
+                const res = await fetch(API_URL + '?action=create_post', { method: 'POST', body: form });
+                const data = await res.json();
+                
+                if(data.success) {
+                    location.reload(); 
+                } else {
+                    alert('Error: ' + data.error);
+                    btn.disabled = false;
+                    btn.textContent = "Publicar";
+                }
+            } catch(e) {
+                console.error(e);
+                btn.disabled = false;
+                btn.textContent = "Publicar";
+            }
+        }
+
+        // --- LÓGICA DE COMENTARIOS ---
+        async function toggleComments(postId) {
+            const section = document.getElementById(`comments-section-${postId}`);
+            const list = document.getElementById(`comments-list-${postId}`);
+            
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                try {
+                    const res = await fetch(`${API_URL}?action=get_comments&post_id=${postId}`);
+                    const data = await res.json();
+                    
+                    list.innerHTML = '';
+                    if(data.comments && data.comments.length > 0) {
+                        data.comments.forEach(c => {
+                            list.innerHTML += `
+                                <div class="flex gap-2 items-start">
+                                    <img src="${c.foto_perfil || 'https://ui-avatars.com/api/?name=User'}" class="w-6 h-6 rounded-full">
+                                    <div class="bg-white p-2 rounded-lg shadow-sm flex-1">
+                                        <p class="text-xs font-bold text-gray-800">${c.nombre_perfil}</p>
+                                        <p class="text-sm text-gray-600">${c.texto}</p>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        list.innerHTML = '<p class="text-xs text-gray-400 italic">No hay comentarios aún.</p>';
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                section.classList.add('hidden');
+            }
+        }
+
+        async function postComment(postId) {
+            if(!currentUser) return alert("Inicia sesión para comentar.");
+            const input = document.getElementById(`comment-input-${postId}`);
+            const texto = input.value;
+            if(!texto) return;
+
+            try {
+                const res = await fetch(API_URL + '?action=add_comment', {
+                    method: 'POST',
+                    body: JSON.stringify({ usuario_id: currentUser.id, post_id: postId, texto: texto }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    input.value = '';
+                    document.getElementById(`comments-section-${postId}`).classList.add('hidden');
+                    toggleComments(postId);
+                } else {
+                    alert('Error al comentar');
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function loadMorePosts() { currentPage++; renderPosts(); }
+        
+        // --- NUEVA LÓGICA DE IMÁGENES (Acumular y Eliminar) ---
+        
+        // 1. Escuchar cambios en el input y ACUMULAR
+        document.getElementById('post-images').addEventListener('change', function(e) {
+            const newFiles = Array.from(e.target.files);
+            if(newFiles.length > 0) {
+                // Agregamos los nuevos archivos al array existente
+                currentFiles = currentFiles.concat(newFiles);
+                renderImagePreviews();
+            }
+            // Limpiamos el input para permitir seleccionar el mismo archivo de nuevo si se desea
+            this.value = '';
+        });
+
+        // 2. Renderizar la vista previa basada en currentFiles
+        function renderImagePreviews() {
+            const wrapper = document.getElementById('image-preview-wrapper');
+            wrapper.innerHTML = ''; // Limpiar vista actual
+            
+            if (currentFiles.length === 0) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            wrapper.classList.remove('hidden');
+
+            // Crear contenedor grid
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-3 gap-2 mt-2';
+
+            currentFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'preview-item relative group';
+                    
+                    // Imagen
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'w-full h-32 object-cover rounded-lg border border-gray-200';
+                    
+                    // Botón Eliminar
+                    const btn = document.createElement('div');
+                    btn.className = 'btn-remove-img';
+                    btn.innerHTML = '<i class="fa-solid fa-xmark text-xs"></i>';
+                    btn.onclick = () => removeImage(index); // Llamar a borrar
+                    
+                    div.appendChild(img);
+                    div.appendChild(btn);
+                    grid.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+            wrapper.appendChild(grid);
+        }
+
+        // 3. Función para eliminar una imagen del array
+        function removeImage(index) {
+            currentFiles.splice(index, 1); // Quitar del array
+            renderImagePreviews(); // Volver a pintar
+        }
+
+        // Utilidades Modales
+        function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
+        function switchModal(close, open) { toggleModal(close); setTimeout(() => toggleModal(open), 200); }
+    </script>
+</body>
+</html>
